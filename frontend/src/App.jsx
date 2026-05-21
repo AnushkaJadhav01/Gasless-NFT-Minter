@@ -1,69 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { motion, AnimatePresence, animate } from 'framer-motion';
-import { createWeb3Modal, defaultConfig, useWeb3Modal, useWeb3ModalAccount, useWeb3ModalProvider } from '@web3modal/ethers/react';
+import {
+  useWeb3Modal,
+  useWeb3ModalAccount,
+  useWeb3ModalProvider,
+} from '@web3modal/ethers/react';
 import LandingPage from './pages/LandingPage';
 import TransactionStatus from './components/TransactionStatus';
 import { UGFClient, TYI_USD_PAYMENT_COIN, BASE_SEPOLIA_CHAIN_ID } from '@tychilabs/ugf-testnet-js';
-
-// 1. Get WalletConnect Project ID
-// For a production app, get one at https://cloud.walletconnect.com
-const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '8942b01269e9712a83e020281b3ccba5';
-
-// 2. Set networks
-const baseSepolia = {
-  chainId: 84532,
-  name: 'Base Sepolia',
-  currency: 'ETH',
-  explorerUrl: 'https://sepolia.basescan.org',
-  rpcUrl: 'https://sepolia.base.org'
-};
-
-// 3. Create Web3Modal config
-const metadata = {
-  name: 'Gasless NFT Minter',
-  description: 'Mint NFTs without ETH gas fees using Universal Gas Framework',
-  url: 'https://gasless-nft-minter.vercel.app',
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
-};
-
-createWeb3Modal({
-  ethersConfig: defaultConfig({ metadata }),
-  chains: [baseSepolia],
-  projectId,
-  enableAnalytics: false
-});
+import { getBalance, getSigner, ensureBaseSepolia } from './config/walletConfig';
+import './config/walletConfig'; // Initialize Web3Modal
 
 function App() {
+  // Web3Modal hooks for wallet connection
   const { open } = useWeb3Modal();
-  const { address, isConnected } = useWeb3ModalAccount();
+  const { address, isConnected, chainId } = useWeb3ModalAccount();
   const { walletProvider } = useWeb3ModalProvider();
 
+  // Wallet state management
   const [wallet, setWallet] = useState({
     address: null,
-    ethBalance: '0',
-    mockUsdBalance: '100.00', // Mock USD balance for UGF Demo
+    ethBalance: '0.0000',
+    mockUsdBalance: '100.00',
     provider: null,
-    signer: null
+    signer: null,
+    isOnCorrectChain: true,
   });
-  
+
+  // Transaction state
   const [txState, setTxState] = useState({
     isOpen: false,
     status: '',
     message: '',
-    hash: null
+    hash: null,
   });
 
   const [mintedNft, setMintedNft] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(true);
-  const [displayCount, setDisplayCount] = useState("0");
+  const [displayCount, setDisplayCount] = useState('0');
 
-  // Dynamic customization states for custom badges
+  // Customization state
   const [customization, setCustomization] = useState({
     initials: 'UGF',
     theme: 'purple',
     core: 'zap',
-    glow: 60
+    glow: 60,
   });
 
   const [myBadges, setMyBadges] = useState([]);
@@ -73,7 +55,12 @@ function App() {
     if (wallet.address) {
       const stored = localStorage.getItem(`ugf_badges_${wallet.address.toLowerCase()}`);
       if (stored) {
-        setMyBadges(JSON.parse(stored));
+        try {
+          setMyBadges(JSON.parse(stored));
+        } catch (e) {
+          console.error('Failed to parse stored badges:', e);
+          setMyBadges([]);
+        }
       } else {
         setMyBadges([]);
       }
@@ -85,272 +72,386 @@ function App() {
   // Preloader timer & counter animation
   useEffect(() => {
     const timer = setTimeout(() => setIsAppLoading(false), 2500);
-    const controls = animate(0, 100, { 
-      duration: 2.3, 
-      ease: "easeOut",
-      onUpdate: (latest) => setDisplayCount(Math.round(latest).toString())
+    const controls = animate(0, 100, {
+      duration: 2.3,
+      ease: 'easeOut',
+      onUpdate: (latest) => setDisplayCount(Math.round(latest).toString()),
     });
-    
+
     return () => {
       clearTimeout(timer);
       controls.stop();
     };
   }, []);
 
-  // Sync Web3Modal state to our local wallet state
+  /**
+   * Sync Web3Modal wallet state to local wallet state
+   * Handles: address, balance, provider, network validation
+   */
   useEffect(() => {
-    async function syncWallet() {
+    const syncWallet = async () => {
       if (isConnected && address) {
-        // Immediately set the address so the UI switches to the Dashboard view
-        setWallet(prev => ({ ...prev, address }));
-        
         try {
-          if (walletProvider) {
-            const provider = new ethers.BrowserProvider(walletProvider);
-            let balanceEth = "0.0000";
+          // Update address immediately
+          setWallet((prev) => ({
+            ...prev,
+            address,
+          }));
+
+          // Check if on correct chain using safe numeric comparison
+          let isCorrectChain = Number(chainId) === Number(BASE_SEPOLIA_CHAIN_ID);
+          if (!isCorrectChain && walletProvider) {
+            console.warn('Not on Base Sepolia. Attempting to switch...');
             try {
-              // Get balance via public read-only call. Wrapped in nested try/catch to maintain maximum resilience even if provider throws RPC blockages
-              const balance = await provider.getBalance(address);
-              balanceEth = ethers.formatEther(balance);
-            } catch (balanceErr) {
-              console.warn("Could not fetch real ETH balance, using standard fallback:", balanceErr);
+              await ensureBaseSepolia(walletProvider);
+              isCorrectChain = true; // Switch succeeded!
+            } catch (chainError) {
+              console.error('Chain switch failed:', chainError);
             }
-            
-            setWallet({
-              address,
-              ethBalance: balanceEth,
-              mockUsdBalance: '100.00',
-              provider,
-              signer: null // Defer Signer authorization completely to the user-clicked handleMint block
-            });
           }
-        } catch (err) {
-          console.error("Failed to fetch balance or provider:", err);
-          // Fallback to offline status for UI customizer access
+
+          // Fetch balance
+          let ethBalance = '0.0000';
+          try {
+            ethBalance = await getBalance(address);
+          } catch (balanceError) {
+            console.warn('Balance fetch failed:', balanceError);
+          }
+
+          // Initialize provider if available
+          let provider = null;
+          if (walletProvider) {
+            try {
+              provider = new ethers.BrowserProvider(walletProvider);
+            } catch (providerError) {
+              console.error('Failed to initialize BrowserProvider:', providerError);
+            }
+          }
+
+          setWallet({
+            address,
+            ethBalance,
+            mockUsdBalance: '100.00',
+            provider,
+            signer: null, // Signer is requested per-transaction
+            isOnCorrectChain: isCorrectChain,
+          });
+        } catch (error) {
+          console.error('Error syncing wallet:', error);
           setWallet({
             address,
             ethBalance: '0.0000',
             mockUsdBalance: '100.00',
             provider: null,
-            signer: null
+            signer: null,
+            isOnCorrectChain: true,
           });
         }
       } else {
-        setWallet({ address: null, ethBalance: '0', mockUsdBalance: '0.00', provider: null, signer: null });
+        setWallet({
+          address: null,
+          ethBalance: '0',
+          mockUsdBalance: '0.00',
+          provider: null,
+          signer: null,
+          isOnCorrectChain: true,
+        });
       }
-    }
-    syncWallet();
-  }, [isConnected, walletProvider, address]);
-
-  const handleConnect = () => {
-    open();
-  };
-
-  const saveMintedBadge = (txHash) => {
-    const newBadge = {
-      id: `badge_${Date.now()}`,
-      initials: customization.initials,
-      theme: customization.theme,
-      core: customization.core,
-      glow: customization.glow,
-      txHash: txHash,
-      timestamp: new Date().toLocaleDateString()
     };
-    const updated = [newBadge, ...myBadges];
-    setMyBadges(updated);
-    if (wallet.address) {
-      localStorage.setItem(`ugf_badges_${wallet.address.toLowerCase()}`, JSON.stringify(updated));
-    }
-  };
 
-  const handleMint = async () => {
-    setTxState({ isOpen: true, status: 'Quoting', message: 'Fetching gas quote from UGF...', hash: null });
-    
+    syncWallet();
+  }, [isConnected, address, chainId, walletProvider]);
+
+  /**
+   * Handle wallet connection
+   */
+  const handleConnect = useCallback(() => {
+    open();
+  }, [open]);
+
+  /**
+   * Handle switching network programmatically
+   */
+  const handleSwitchNetwork = useCallback(() => {
+    open({ view: 'Networks' });
+  }, [open]);
+
+  /**
+   * Save minted badge to localStorage
+   */
+  const saveMintedBadge = useCallback(
+    (txHash) => {
+      const newBadge = {
+        id: `badge_${Date.now()}`,
+        initials: customization.initials,
+        theme: customization.theme,
+        core: customization.core,
+        glow: customization.glow,
+        txHash: txHash,
+        timestamp: new Date().toLocaleDateString(),
+      };
+      const updated = [newBadge, ...myBadges];
+      setMyBadges(updated);
+      if (wallet.address) {
+        localStorage.setItem(
+          `ugf_badges_${wallet.address.toLowerCase()}`,
+          JSON.stringify(updated)
+        );
+      }
+    },
+    [customization, myBadges, wallet.address]
+  );
+
+  /**
+   * Execute UGF gasless mint transaction
+   */
+  const handleMint = useCallback(async () => {
+    setTxState({
+      isOpen: true,
+      status: 'Initializing',
+      message: 'Preparing to mint your badge...',
+      hash: null,
+    });
+
     try {
       const apiKey = import.meta.env.VITE_UGF_API_KEY;
       const contractAddress = import.meta.env.VITE_CONTRACT_ADDRESS;
-      
-      // FIRST CHECK: If running in Sandbox Mock Mode (no ENV config), bypass provider/signer requests entirely!
+
+      // If running without UGF env vars, run mock transaction
       if (!apiKey || !contractAddress) {
-        console.warn("Missing .env variables. Running sandbox mock transaction.");
+        console.warn('Missing UGF env variables. Running mock transaction.');
         await runMockTransaction();
         return;
       }
 
-      // SECOND CHECK: For real UGF execution, verify wallet is connected
+      // Verify wallet connection
       if (!walletProvider || !wallet.address) {
-        throw new Error("Wallet not fully connected. Please connect wallet.");
+        throw new Error('Wallet not connected. Please connect your wallet.');
       }
 
       const provider = new ethers.BrowserProvider(walletProvider);
+      const signer = provider.getSigner(wallet.address);
       
       // Initialize real UGF Client
       const ugfClient = new UGFClient({ token: apiKey });
-      
-      // We assume the contract has a `mint()` function (selector: 0x1249c58b)
-      const mintTxData = "0x1249c58b"; 
-      
-      // 1. Get Quote
-      const quote = await ugfClient.quote.get({
-        payment_coin: TYI_USD_PAYMENT_COIN,
-        payer_address: wallet.address,
-        tx_object: mintTxData,
-        dest_chain_id: BASE_SEPOLIA_CHAIN_ID
-      });
-      
-      if (quote) {
-        setTxState(prev => ({ ...prev, status: 'Relaying', message: 'Paying gas and relaying via UGF...' }));
-        
-        // 2. Execute Transaction
-        const result = await ugfClient.chains.evm.sponsorAndExecute(
+
+      // Mint function selector (0x1249c58b = mint() with no args)
+      const mintTxData = '0x1249c58b';
+
+      // Get quote from UGF
+      let quote;
+      try {
+        quote = await ugfClient.quote.get({
+          payment_coin: TYI_USD_PAYMENT_COIN,
+          payer_address: wallet.address,
+          tx_object: mintTxData,
+          dest_chain_id: BASE_SEPOLIA_CHAIN_ID,
+        });
+
+        if (!quote) {
+          throw new Error('No quote received from UGF');
+        }
+      } catch (quoteError) {
+        throw new Error(`Quote fetch failed: ${quoteError.message}`);
+      }
+
+      // Execute UGF sponsored transaction
+      setTxState((prev) => ({ ...prev, status: 'Relaying', message: 'Relaying via UGF Relayer...' }));
+
+      let result;
+      try {
+        result = await ugfClient.chains.evm.sponsorAndExecute(
           quote.digest,
-          provider.getSigner(wallet.address),
-          async (signer) => {
+          signer,
+          async () => {
             return {
               to: contractAddress,
-              data: mintTxData
+              data: mintTxData,
+              value: '0',
             };
           },
           {
-            onTick: (statusObj) => setTxState(prev => ({ 
-              ...prev, 
-              status: 'Confirming', 
-              message: `Status: ${statusObj.status}` 
-            }))
+            onTick: (statusObj) =>
+              setTxState((prev) => ({
+                ...prev,
+                status: 'Confirming',
+                message: `Status: ${statusObj.status || 'Processing'}`,
+              })),
           }
         );
-        
-        if (result.userTxHash) {
-          setTxState(prev => ({ ...prev, status: 'Success', hash: result.userTxHash }));
-          setMintedNft(true);
-          setWallet(prev => ({ 
-            ...prev, 
-            mockUsdBalance: (parseFloat(prev.mockUsdBalance) - parseFloat(quote.payment_amount)).toFixed(2)
-          }));
-          saveMintedBadge(result.userTxHash);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      setTxState({ isOpen: true, status: 'Error', message: err.message || 'Transaction failed.', hash: null });
-    }
-  };
 
-  // Mock transaction logic if ENV is not configured
+        if (!result || !result.userTxHash) {
+          throw new Error('No transaction hash returned');
+        }
+      } catch (executeError) {
+        throw new Error(`Transaction execution failed: ${executeError.message}`);
+      }
+
+      // Success
+      setTxState({
+        isOpen: true,
+        status: 'Success',
+        hash: result.userTxHash,
+        message: `Badge minted! Tx: ${result.userTxHash.slice(0, 10)}...`,
+      });
+
+      setMintedNft(true);
+      setWallet((prev) => ({
+        ...prev,
+        mockUsdBalance: (parseFloat(prev.mockUsdBalance) - parseFloat(quote.payment_amount || 0)).toFixed(2),
+      }));
+      saveMintedBadge(result.userTxHash);
+    } catch (error) {
+      console.error('Mint transaction error:', error);
+      setTxState({
+        isOpen: true,
+        status: 'Error',
+        message: error.message || 'Transaction failed. Please try again.',
+        hash: null,
+      });
+    }
+  }, [walletProvider, wallet, saveMintedBadge]);
+
+  /**
+   * Mock transaction for demo/testing without UGF
+   */
   const runMockTransaction = async () => {
-    await new Promise(r => setTimeout(r, 1500));
-    setTxState(prev => ({ ...prev, status: 'Relaying', message: 'Transaction sent to UGF Relayer Network...' }));
-    await new Promise(r => setTimeout(r, 2000));
-    setTxState(prev => ({ ...prev, status: 'Confirming', message: 'Waiting for Base Sepolia confirmation...' }));
-    await new Promise(r => setTimeout(r, 2500));
-    const mockTxHash = "0x" + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    setTxState(prev => ({ ...prev, status: 'Success', hash: mockTxHash }));
+    await new Promise((r) => setTimeout(r, 1500));
+    setTxState((prev) => ({
+      ...prev,
+      status: 'Relaying',
+      message: 'Transaction sent to UGF Relayer Network...',
+    }));
+
+    await new Promise((r) => setTimeout(r, 2000));
+    setTxState((prev) => ({
+      ...prev,
+      status: 'Confirming',
+      message: 'Waiting for Base Sepolia confirmation...',
+    }));
+
+    await new Promise((r) => setTimeout(r, 2500));
+
+    const mockTxHash =
+      '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+
+    setTxState({
+      isOpen: true,
+      status: 'Success',
+      hash: mockTxHash,
+      message: `Badge minted (mock)! Tx: ${mockTxHash.slice(0, 10)}...`,
+    });
+
     setMintedNft(true);
-    setWallet(prev => ({ 
-      ...prev, 
-      mockUsdBalance: (parseFloat(prev.mockUsdBalance) - 0.15).toFixed(2)
+    setWallet((prev) => ({
+      ...prev,
+      mockUsdBalance: (parseFloat(prev.mockUsdBalance) - 0.15).toFixed(2),
     }));
     saveMintedBadge(mockTxHash);
   };
 
-  const closeTxModal = () => {
+  /**
+   * Close transaction modal
+   */
+  const closeTxModal = useCallback(() => {
     setTxState({ isOpen: false, status: '', message: '', hash: null });
-  };
+  }, []);
 
   return (
     <>
       <AnimatePresence>
         {isAppLoading && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 1 }}
-            exit={{ y: "-100%", opacity: 0 }}
+            exit={{ y: '-100%', opacity: 0 }}
             transition={{ duration: 0.8, ease: [0.76, 0, 0.24, 1] }}
             className="fixed inset-0 z-[9999] bg-[#030509] flex flex-col items-center justify-center overflow-hidden"
           >
-            {/* Background effects */}
+            {/* Background grid */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"></div>
-            <motion.div 
+
+            {/* Animated glow blob */}
+            <motion.div
               className="absolute w-[40vw] h-[40vw] rounded-full bg-primary/20 blur-[120px]"
               animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 0.6, 0.3] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
             />
 
-            {/* Logo & Rings */}
+            {/* Logo section */}
             <motion.div
-              initial={{ scale: 0.8, opacity: 0, filter: "blur(10px)" }}
-              animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
-              transition={{ duration: 1, ease: "easeOut" }}
+              initial={{ scale: 0.8, opacity: 0, filter: 'blur(10px)' }}
+              animate={{ scale: 1, opacity: 1, filter: 'blur(0px)' }}
+              transition={{ duration: 1, ease: 'easeOut' }}
               className="relative z-10 flex flex-col items-center"
             >
               <div className="relative flex items-center justify-center">
-                <motion.img 
-                  src="/logo.png" 
-                  alt="Loading" 
+                <motion.img
+                  src="/logo.png"
+                  alt="Loading"
                   className="h-28 md:h-32 w-auto object-contain drop-shadow-[0_0_30px_rgba(139,92,246,0.6)] relative z-20"
                   animate={{ y: [0, -10, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
                 />
-                
-                {/* Scanning Outer Ring */}
-                <motion.div 
+
+                {/* Outer ring */}
+                <motion.div
                   className="absolute w-48 h-48 md:w-56 md:h-56 border-[1px] border-primary/30 rounded-full"
                   initial={{ rotate: 0, scale: 0.8, opacity: 0 }}
                   animate={{ rotate: 360, scale: 1, opacity: 1 }}
-                  transition={{ rotate: { duration: 8, repeat: Infinity, ease: "linear" }, opacity: { duration: 1 }, scale: { duration: 1 } }}
-                >
-                  <div className="absolute top-0 left-1/2 w-3 h-3 bg-primary rounded-full shadow-[0_0_15px_rgba(139,92,246,1)] -translate-x-1/2 -translate-y-1/2"></div>
-                </motion.div>
-                
-                {/* Dashed Inner Ring */}
-                <motion.div 
-                  className="absolute w-56 h-56 md:w-64 md:h-64 border-[1px] border-secondary/20 rounded-full border-dashed"
-                  initial={{ rotate: 360, scale: 0.8, opacity: 0 }}
-                  animate={{ rotate: 0, scale: 1, opacity: 1 }}
-                  transition={{ rotate: { duration: 12, repeat: Infinity, ease: "linear" }, opacity: { duration: 1, delay: 0.2 }, scale: { duration: 1, delay: 0.2 } }}
+                  transition={{
+                    rotate: { duration: 8, repeat: Infinity, ease: 'linear' },
+                    opacity: { duration: 1 },
+                    scale: { duration: 1 },
+                  }}
+                />
+
+                {/* Inner ring */}
+                <motion.div
+                  className="absolute w-32 h-32 md:w-40 md:h-40 border border-dashed border-primary/20 rounded-full"
+                  initial={{ rotate: 0, scale: 0.8, opacity: 0 }}
+                  animate={{ rotate: -360, scale: 1, opacity: 1 }}
+                  transition={{
+                    rotate: { duration: 6, repeat: Infinity, ease: 'linear' },
+                    opacity: { duration: 1 },
+                    scale: { duration: 1 },
+                  }}
                 />
               </div>
 
-              {/* Progress Bar & Text */}
-              <div className="mt-20 w-72 flex flex-col items-center gap-4 relative z-20">
-                <div className="flex items-center justify-between w-full text-primary font-mono text-xs font-semibold uppercase tracking-[0.2em]">
-                  <motion.div 
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    Establishing Link
-                  </motion.div>
-                  <motion.div className="text-secondary text-sm tabular-nums">
-                    {displayCount}%
-                  </motion.div>
-                </div>
-                
-                <div className="w-full h-[3px] bg-white/10 rounded-full overflow-hidden relative shadow-[0_0_10px_rgba(139,92,246,0.3)]">
-                  <motion.div 
-                    className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-primary via-accent to-secondary"
-                    initial={{ width: "0%" }}
-                    animate={{ width: "100%" }}
-                    transition={{ duration: 2.3, ease: "easeOut" }}
-                  />
-                </div>
-              </div>
+              {/* Counter */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.8 }}
+                className="mt-20 text-center"
+              >
+                <p className="text-5xl md:text-6xl font-black text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
+                  {displayCount}%
+                </p>
+                <p className="text-slate-400 text-sm mt-4 tracking-widest">INITIALIZING</p>
+              </motion.div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <LandingPage 
-        wallet={wallet}
-        onConnect={handleConnect}
-        onMint={handleMint}
-        txState={txState}
-        mintedNft={mintedNft}
-        customization={customization}
-        setCustomization={setCustomization}
-        myBadges={myBadges}
-      />
-      {txState.isOpen && (
-        <TransactionStatus state={txState} onClose={closeTxModal} />
+      {/* Main dashboard */}
+      {!isAppLoading && (
+        <LandingPage
+          wallet={wallet}
+          onConnect={handleConnect}
+          onMint={handleMint}
+          onSwitchNetwork={handleSwitchNetwork}
+          customization={customization}
+          setCustomization={setCustomization}
+          myBadges={myBadges}
+          txState={txState}
+          mintedNft={mintedNft}
+        />
       )}
+
+      {/* Transaction status modal */}
+      <TransactionStatus txState={txState} onClose={closeTxModal} />
     </>
   );
 }

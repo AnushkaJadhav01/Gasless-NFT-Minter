@@ -1,3 +1,13 @@
+// Polyfills for Node.js modules in browser (must be first)
+import 'process/browser.js';
+import { Buffer } from 'buffer';
+
+// Make Buffer available globally
+if (typeof globalThis !== 'undefined') {
+  globalThis.Buffer = Buffer;
+}
+
+// Standard React imports
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

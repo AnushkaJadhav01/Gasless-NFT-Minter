@@ -1,0 +1,32 @@
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Hardhat directories
+cache/
+artifacts/
+typechain/
+typechain-types/
+coverage/
+coverage.json
+
+# Vite / Frontend build output
+frontend/dist/
+frontend/dist-ssr/
+frontend/node_modules/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

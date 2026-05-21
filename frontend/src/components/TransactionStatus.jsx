@@ -1,7 +1,9 @@
 import React from 'react';
 import { CheckCircle2, XCircle, Loader2, ExternalLink, X } from 'lucide-react';
 
-const TransactionStatus = ({ state, onClose }) => {
+const TransactionStatus = ({ txState: state, onClose }) => {
+  if (!state || !state.isOpen) return null;
+
   const isSuccess = state.status === 'Success';
   const isError = state.status === 'Error';
   const isLoading = !isSuccess && !isError;
