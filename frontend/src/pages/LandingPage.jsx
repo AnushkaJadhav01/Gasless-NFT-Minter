@@ -116,7 +116,8 @@ const LandingPage = ({
   mintedNft, 
   customization, 
   setCustomization, 
-  myBadges 
+  myBadges,
+  onSwitchNetwork
 }) => {
   const [isDocsOpen, setIsDocsOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -150,7 +151,7 @@ const LandingPage = ({
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/10 blur-[120px]"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-secondary/10 blur-[120px]"></div>
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
       </div>
 
       {/* Navbar */}
@@ -179,7 +180,7 @@ const LandingPage = ({
         </div>
         
         <div className="flex items-center gap-3">
-          <WalletConnect wallet={wallet} onConnect={onConnect} />
+          <WalletConnect wallet={wallet} onConnect={onConnect} onSwitchNetwork={onSwitchNetwork} />
           
           {/* Mobile hamburger menu toggle */}
           <button
@@ -597,7 +598,7 @@ const LandingPage = ({
 
                       {/* Gradient Backdrop */}
                       <div className={`absolute inset-0 bg-gradient-to-br ${activeTheme.gradient} opacity-20 pointer-events-none`}></div>
-                      <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.06] mix-blend-overlay pointer-events-none"></div>
+                      <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.06] mix-blend-overlay pointer-events-none"></div>
  
                       {/* Glowing Ring Core */}
                       <div className="relative w-28 h-28 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-5 overflow-hidden group">
@@ -797,7 +798,7 @@ const LandingPage = ({
                           >
                             {/* Card visual badge header */}
                             <div className={`h-48 w-full bg-gradient-to-br ${themeObj.gradient} p-6 relative overflow-hidden flex flex-col items-center justify-center`}>
-                              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-30 mix-blend-overlay"></div>
+                              <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-30 mix-blend-overlay"></div>
                               <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2">
                                 <CoreIconComp size={38} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
                               </div>
@@ -899,7 +900,7 @@ const LandingPage = ({
                         className="glass-panel rounded-3xl overflow-hidden group cursor-pointer shadow-2xl transition-all hover:shadow-primary/20 hover:border-primary/50"
                       >
                         <div className={`h-48 w-full bg-gradient-to-br ${nft.color} p-6 relative overflow-hidden flex flex-col items-center justify-center`}>
-                          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-30 mix-blend-overlay"></div>
+                          <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-30 mix-blend-overlay"></div>
                           <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2">
                             <CoreIconComp size={32} className="text-white/80" />
                           </div>

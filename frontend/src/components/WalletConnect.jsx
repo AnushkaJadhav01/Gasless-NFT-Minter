@@ -106,7 +106,7 @@ const walletsList = [
   }
 ];
 
-const WalletConnect = ({ wallet, onConnect }) => {
+const WalletConnect = ({ wallet, onConnect, onSwitchNetwork }) => {
   const { disconnect } = useDisconnect();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -254,13 +254,19 @@ const WalletConnect = ({ wallet, onConnect }) => {
                   </button>
                 </div>
 
-                {/* Sliced Address tech tag */}
+                {/* Network Node and Switch Button */}
                 <div className="p-3 bg-black/35 rounded-2xl border border-white/[0.04] flex items-center justify-between shadow-inner">
                   <div className="flex flex-col">
                     <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-slate-500 font-bold">Network Node</span>
-                    <span className="text-[10px] font-mono text-slate-300 font-medium flex items-center gap-1.5 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Base Sepolia
-                    </span>
+                    {wallet.isOnCorrectChain ? (
+                      <span className="text-[10px] font-mono text-slate-300 font-medium flex items-center gap-1.5 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Base Sepolia
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono text-rose-400 font-medium flex items-center gap-1.5 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Wrong Network
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={handleCopy}
@@ -279,6 +285,19 @@ const WalletConnect = ({ wallet, onConnect }) => {
                     )}
                   </button>
                 </div>
+
+                {/* Switch network banner if on wrong network */}
+                {!wallet.isOnCorrectChain && (
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      onSwitchNetwork();
+                    }}
+                    className="w-full py-3 bg-amber-950/20 hover:bg-amber-950/30 border border-amber-500/20 hover:border-amber-500/35 text-amber-400 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Globe size={12} className="animate-spin" style={{ animationDuration: '4s' }} /> Switch to Base Sepolia
+                  </button>
+                )}
 
                 {/* Financial Ledger Section */}
                 <div className="space-y-2">

@@ -1,11 +1,65 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'url'
+import path from 'path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  envDir: '../',
   plugins: [
     react(),
     tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      'util$': path.resolve(__dirname, 'node_modules/util/util.js'),
+      'buffer$': path.resolve(__dirname, 'node_modules/buffer/index.js'),
+      'process$': path.resolve(__dirname, 'node_modules/process/browser.js'),
+    }
+  },
+  define: {
+    'process.env.BROWSER': 'true',
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+    global: 'globalThis'
+  },
+  optimizeDeps: {
+    rolldownOptions: {
+      define: {
+        global: 'globalThis'
+      },
+      supported: {
+        bigint: true
+      }
+    }
+  },
+  build: {
+    target: 'esnext',
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false
+      }
+    },
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('@web3modal/ethers')) {
+            return 'web3modal';
+          }
+          if (id.includes('ethers')) {
+            return 'ethers';
+          }
+          if (id.includes('three') || id.includes('@react-three/fiber') || id.includes('@react-three/drei')) {
+            return 'three';
+          }
+        }
+      }
+    }
+  },
+  server: {
+    cors: true
+  }
 })
