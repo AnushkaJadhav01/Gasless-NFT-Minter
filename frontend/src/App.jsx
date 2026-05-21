@@ -177,13 +177,12 @@ function App() {
         return;
       }
 
-      // SECOND CHECK: For real UGF execution, request provider and active signer safely
+      // SECOND CHECK: For real UGF execution, verify wallet is connected
       if (!walletProvider || !wallet.address) {
         throw new Error("Wallet not fully connected. Please connect wallet.");
       }
 
       const provider = new ethers.BrowserProvider(walletProvider);
-      const activeSigner = await provider.getSigner();
       
       // Initialize real UGF Client
       const ugfClient = new UGFClient({ token: apiKey });
@@ -205,7 +204,7 @@ function App() {
         // 2. Execute Transaction
         const result = await ugfClient.chains.evm.sponsorAndExecute(
           quote.digest,
-          activeSigner,
+          provider.getSigner(wallet.address),
           async (signer) => {
             return {
               to: contractAddress,
