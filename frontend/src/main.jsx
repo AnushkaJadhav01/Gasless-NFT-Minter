@@ -1,5 +1,5 @@
 // Polyfills for Node.js modules in browser (must be first)
-import 'process/browser.js';
+import 'process';
 import { Buffer } from 'buffer';
 
 // Make Buffer available globally

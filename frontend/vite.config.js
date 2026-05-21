@@ -11,23 +11,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   envDir: '../',
   plugins: [
-    polyfillNode(),
     react(),
     tailwindcss(),
+    polyfillNode(),
   ],
   resolve: {
     alias: {
-      util: 'util/',
-      'node:util': 'util/',
-      'util$': path.resolve(__dirname, 'node_modules/util/util.js'),
+      util: path.resolve(__dirname, 'node_modules/util/util.js'),
+      'node:util': path.resolve(__dirname, 'node_modules/util/util.js'),
       buffer: path.resolve(__dirname, 'node_modules/buffer/index.js'),
-      'node:buffer': 'buffer/',
-      'process/browser.js': path.resolve(__dirname, 'node_modules/process/browser.js'),
-      process: path.resolve(__dirname, 'node_modules/process/browser.js'),
+      'node:buffer': path.resolve(__dirname, 'node_modules/buffer/index.js'),
+      process: path.resolve(__dirname, 'node_modules/process/browser.js')
     }
   },
   optimizeDeps: {
-    include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react'],
+    include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react', 'ethers'],
     rollupOptions: {
       supported: {
         bigint: true
@@ -40,9 +38,14 @@ export default defineConfig({
     global: 'globalThis'
   },
   build: {
-    target: 'esnext',
+    target: 'es2020',
     minify: false,
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    },
     rollupOptions: {
+      plugins: [polyfillNode()],
       output: {
         manualChunks(id) {
           if (id.includes('@web3modal/ethers')) {
