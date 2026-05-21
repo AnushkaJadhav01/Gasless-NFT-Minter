@@ -28,15 +28,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react'],
-    esbuildOptions: {
-      define: {
-        global: 'globalThis'
-      }
-    },
-    rolldownOptions: {
-      define: {
-        global: 'globalThis'
-      },
+    rollupOptions: {
       supported: {
         bigint: true
       }
@@ -46,17 +38,6 @@ export default defineConfig({
     'process.env.BROWSER': 'true',
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     global: 'globalThis'
-  },
-  optimizeDeps: {
-    include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react'],
-    rollupOptions: {
-      define: {
-        global: 'globalThis'
-      },
-      supported: {
-        bigint: true
-      }
-    }
   },
   build: {
     target: 'esnext',
