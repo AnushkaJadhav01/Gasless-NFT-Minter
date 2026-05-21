@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import polyfillNode from 'rollup-plugin-polyfill-node'
 import { fileURLToPath } from 'url'
 import path from 'path'
 
@@ -10,16 +11,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   envDir: '../',
   plugins: [
+    polyfillNode(),
     react(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
       util: 'util/',
+      'node:util': 'util/',
       'util$': path.resolve(__dirname, 'node_modules/util/util.js'),
       buffer: path.resolve(__dirname, 'node_modules/buffer/index.js'),
+      'node:buffer': 'buffer/',
       'process/browser.js': path.resolve(__dirname, 'node_modules/process/browser.js'),
       process: path.resolve(__dirname, 'node_modules/process/browser.js'),
+    }
+  },
+  optimizeDeps: {
+    include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis'
+      }
+    },
+    rolldownOptions: {
+      define: {
+        global: 'globalThis'
+      },
+      supported: {
+        bigint: true
+      }
     }
   },
   define: {
@@ -28,7 +48,8 @@ export default defineConfig({
     global: 'globalThis'
   },
   optimizeDeps: {
-    rolldownOptions: {
+    include: ['util', 'buffer', 'process', '@web3modal/ethers', '@web3modal/ethers/react'],
+    rollupOptions: {
       define: {
         global: 'globalThis'
       },
