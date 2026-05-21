@@ -21,7 +21,8 @@
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.15.1",
     "tailwindcss": "^4.3.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

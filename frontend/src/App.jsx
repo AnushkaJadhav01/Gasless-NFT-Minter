@@ -183,7 +183,7 @@ function App() {
       }
 
       const provider = new ethers.BrowserProvider(walletProvider);
-      const activeSigner = await provider.getSigner(wallet.address);
+      const activeSigner = await provider.getSigner();
       
       // Initialize real UGF Client
       const ugfClient = new UGFClient({ token: apiKey });
